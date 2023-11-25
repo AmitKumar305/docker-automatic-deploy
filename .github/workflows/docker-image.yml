@@ -1,0 +1,60 @@
+name: Docker Image CI
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    if: "!contains(github.event.head_commit.message, '[skip-ci]')"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.13.0]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+      
+    # - name: Configure AWS credentials
+    #   uses: aws-actions/configure-aws-credentials@v1
+    #   with:
+    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     aws-region: us-east-1
+
+    - name: Local Configurations
+      env:
+        DOCKER_USERNAME: ${{secrets.DOCKER_USERNAME}}
+        DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+      run: |
+        echo "Finished setting up the env variables"
+    - name: build
+      run: |
+        echo "Authenticating docker"
+        docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+        echo "Building docker image"
+        docker build -t amit305/docker-manual-deploy:${GITHUB_REF##*/} .
+        echo "Pushing the amit305/docker-manual-deploy:${GITHUB_REF##*/} to the Docker"
+        docker push amit305/docker-manual-deploy:${GITHUB_REF##*/}
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2 
+      - name: Build & Deploy
+        env:
+            PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+            HOSTNAME: ${{secrets.SSH_HOST}}
+            USER_NAME: ${{secrets.USER_NAME}}
+      
+        run: |
+          echo "$PRIVATE_KEY" > private_key && chmod 600 private_key
+          ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} '
+          sudo su
+          docker pull amit305/docker-automatic-deploy:main
+          docker-compose up -d
+              
+
+      
+        

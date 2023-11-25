@@ -5,7 +5,7 @@ services:
     image: amit305/docker-automatic-deploy:main
     container_name: 'docker-app'
     ports:
-      - 3000:3000
+      - 3000:8000
     environment:
       - PORT=8080
   
